@@ -24,7 +24,7 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         super(dataSource);
     }
 
-    // Helper method to map a ResultSet row to a Product object.
+    // Maps a ResultSet row to a Product object
     private Product mapRow(ResultSet row) throws SQLException
     {
         int productId = row.getInt("product_id");
@@ -32,23 +32,39 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         BigDecimal price = row.getBigDecimal("price");
         int categoryId = row.getInt("category_id");
         String description = row.getString("description");
-        String color = row.getString("color");
+        String color = row.getString("subcategory"); // DB column
         int stock = row.getInt("stock");
         boolean featured = row.getBoolean("featured");
         String imageUrl = row.getString("image_url");
 
-        if (imageUrl == null || imageUrl.isEmpty()) {
+        if (imageUrl == null || imageUrl.isEmpty())
+        {
             imageUrl = "https://placehold.co/300x300/e0e0e0/333333?text=No+Image";
         }
 
-        return new Product(productId, name, price, categoryId, description, color, stock, featured, imageUrl);
+        return new Product(
+                productId,
+                name,
+                price,
+                categoryId,
+                description,
+                color,
+                stock,
+                featured,
+                imageUrl
+        );
     }
 
     @Override
     public List<Product> getAllProducts()
     {
         List<Product> products = new ArrayList<>();
-        String sql = "SELECT product_id, name, price, category_id, description, color, stock, featured, image_url FROM products";
+
+        String sql = """
+            SELECT product_id, name, price, category_id,
+                   description, subcategory, stock, featured, image_url
+            FROM products
+        """;
 
         try (Connection connection = getConnection();
              PreparedStatement ps = connection.prepareStatement(sql);
@@ -64,13 +80,19 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
             System.err.println("Error retrieving all products: " + e.getMessage());
             throw new RuntimeException("Failed to retrieve all products.", e);
         }
+
         return products;
     }
 
     @Override
     public Product getById(int productId)
     {
-        String sql = "SELECT product_id, name, price, category_id, description, color, stock, featured, image_url FROM products WHERE product_id = ?";
+        String sql = """
+            SELECT product_id, name, price, category_id,
+                   description, subcategory, stock, featured, image_url
+            FROM products
+            WHERE product_id = ?
+        """;
 
         try (Connection connection = getConnection();
              PreparedStatement ps = connection.prepareStatement(sql))
@@ -87,17 +109,22 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         }
         catch (SQLException e)
         {
-            System.err.println("Error retrieving product by ID " + productId + ": " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve product by ID: " + productId, e);
+            System.err.println("Error retrieving product ID " + productId + ": " + e.getMessage());
+            throw new RuntimeException("Failed to retrieve product by ID.", e);
         }
+
         return null;
     }
 
     @Override
     public Product create(Product product)
     {
-        String sql = "INSERT INTO products (name, price, category_id, description, color, stock, featured, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        int newId = 0;
+        String sql = """
+            INSERT INTO products
+            (name, price, category_id, description,
+             subcategory, stock, featured, image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """;
 
         try (Connection connection = getConnection();
              PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS))
@@ -113,22 +140,19 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
 
             ps.executeUpdate();
 
-            try (ResultSet generatedKeys = ps.getGeneratedKeys())
+            try (ResultSet keys = ps.getGeneratedKeys())
             {
-                if (generatedKeys.next())
+                if (keys.next())
                 {
-                    newId = generatedKeys.getInt(1);
-                    product.setProductId(newId);
-                } else
-                {
-                    throw new SQLException("Creating product failed, no ID obtained.");
+                    product.setProductId(keys.getInt(1));
                 }
             }
+
             return product;
         }
         catch (SQLException e)
         {
-            System.err.println("Error creating product '" + product.getName() + "': " + e.getMessage());
+            System.err.println("Error creating product: " + e.getMessage());
             throw new RuntimeException("Failed to create product.", e);
         }
     }
@@ -136,7 +160,12 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
     @Override
     public void update(int productId, Product product)
     {
-        String sql = "UPDATE products SET name = ?, price = ?, category_id = ?, description = ?, color = ?, stock = ?, featured = ?, image_url = ? WHERE product_id = ?";
+        String sql = """
+            UPDATE products SET
+                name = ?, price = ?, category_id = ?, description = ?,
+                subcategory = ?, stock = ?, featured = ?, image_url = ?
+            WHERE product_id = ?
+        """;
 
         try (Connection connection = getConnection();
              PreparedStatement ps = connection.prepareStatement(sql))
@@ -156,7 +185,7 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         catch (SQLException e)
         {
             System.err.println("Error updating product ID " + productId + ": " + e.getMessage());
-            throw new RuntimeException("Failed to update product with ID: " + productId, e);
+            throw new RuntimeException("Failed to update product.", e);
         }
     }
 
@@ -174,7 +203,7 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         catch (SQLException e)
         {
             System.err.println("Error deleting product ID " + productId + ": " + e.getMessage());
-            throw new RuntimeException("Failed to delete product with ID: " + productId, e);
+            throw new RuntimeException("Failed to delete product.", e);
         }
     }
 
@@ -182,7 +211,13 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
     public List<Product> getProductsByCategoryId(int categoryId)
     {
         List<Product> products = new ArrayList<>();
-        String sql = "SELECT product_id, name, price, category_id, description, color, stock, featured, image_url FROM products WHERE category_id = ?";
+
+        String sql = """
+            SELECT product_id, name, price, category_id,
+                   description, subcategory, stock, featured, image_url
+            FROM products
+            WHERE category_id = ?
+        """;
 
         try (Connection connection = getConnection();
              PreparedStatement ps = connection.prepareStatement(sql))
@@ -199,9 +234,10 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         }
         catch (SQLException e)
         {
-            System.err.println("Error retrieving products for category ID " + categoryId + ": " + e.getMessage());
-            throw new RuntimeException("Failed to retrieve products for category ID: " + categoryId, e);
+            System.err.println("Error retrieving products by category: " + e.getMessage());
+            throw new RuntimeException("Failed to retrieve products by category.", e);
         }
+
         return products;
     }
 
@@ -209,45 +245,58 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
     public List<Product> search(Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice, String color)
     {
         List<Product> products = new ArrayList<>();
-        StringBuilder sqlBuilder = new StringBuilder("SELECT product_id, name, price, category_id, description, color, stock, featured, image_url FROM products WHERE 1=1");
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT product_id, name, price, category_id,
+                   description, subcategory, stock, featured, image_url
+            FROM products
+            WHERE 1=1
+        """);
+
         List<Object> params = new ArrayList<>();
 
         if (categoryId != null)
         {
-            sqlBuilder.append(" AND category_id = ?");
+            sql.append(" AND category_id = ?");
             params.add(categoryId);
         }
+
         if (minPrice != null)
         {
-            sqlBuilder.append(" AND price >= ?");
+            sql.append(" AND price >= ?");
             params.add(minPrice);
         }
+
         if (maxPrice != null)
         {
-            sqlBuilder.append(" AND price <= ?");
+            sql.append(" AND price <= ?");
             params.add(maxPrice);
         }
+
         if (color != null && !color.trim().isEmpty())
         {
-            sqlBuilder.append(" AND color LIKE ?");
+            sql.append(" AND subcategory LIKE ?");
             params.add("%" + color.trim() + "%");
         }
 
         try (Connection connection = getConnection();
-             PreparedStatement ps = connection.prepareStatement(sqlBuilder.toString()))
+             PreparedStatement ps = connection.prepareStatement(sql.toString()))
         {
             for (int i = 0; i < params.size(); i++)
             {
                 Object param = params.get(i);
+
                 if (param instanceof Integer)
                 {
                     ps.setInt(i + 1, (Integer) param);
-                } else if (param instanceof BigDecimal)
+                }
+                else if (param instanceof BigDecimal)
                 {
                     ps.setBigDecimal(i + 1, (BigDecimal) param);
-                } else if (param instanceof String)
+                }
+                else
                 {
-                    ps.setString(i + 1, (String) param);
+                    ps.setString(i + 1, param.toString());
                 }
             }
 
@@ -264,11 +313,10 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
             System.err.println("Error searching products: " + e.getMessage());
             throw new RuntimeException("Failed to search products.", e);
         }
+
         return products;
     }
 
-    // NEW: Updates the stock of a product.
-    // quantityChange can be positive (increase) or negative (decrease).
     @Override
     public void updateStock(int productId, int quantityChange)
     {
@@ -277,14 +325,14 @@ public class MySqlProductDao extends MySqlDaoBase implements ProductDao
         try (Connection connection = getConnection();
              PreparedStatement ps = connection.prepareStatement(sql))
         {
-            ps.setInt(1, quantityChange); // The change amount (can be negative)
+            ps.setInt(1, quantityChange);
             ps.setInt(2, productId);
             ps.executeUpdate();
         }
         catch (SQLException e)
         {
-            System.err.println("Error updating stock for product ID " + productId + ": " + e.getMessage());
-            throw new RuntimeException("Failed to update product stock.", e);
+            System.err.println("Error updating stock: " + e.getMessage());
+            throw new RuntimeException("Failed to update stock.", e);
         }
     }
 }
